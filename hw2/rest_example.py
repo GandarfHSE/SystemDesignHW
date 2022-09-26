@@ -1,7 +1,6 @@
 #!flask/bin/python
 import json
-from flask import Flask, jsonify, Response, request
-from markupsafe import escape
+from flask import Flask, Response, request
 
 app = Flask(__name__)
 db = dict()
@@ -13,7 +12,7 @@ def not_found(error):
 
 @app.route('/hello', methods=['GET'])
 def get_hello():
-    return Response(response="HSE One Love!\n", status=200, mimetype="text/plain")
+    return Response(response="HSE One Love!", status=200, mimetype="text/plain")
 
 
 @app.route('/set', methods=['POST'])
