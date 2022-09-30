@@ -1,29 +1,41 @@
 import copy
+from enum import Enum
+
+class ResultData:
+    def __init__(self, res, x, y):
+        self.x = x
+        self.y = y
+        self.result = res
+
+class Score(Enum):
+    'WIN' = 1
+    'LOSE' = -1
+    'NOT_FINISHED' = 0
 
 class Game:
-    dd = [(0, 1), (1, 1), (1, 0), (1, -1), (-1, 0), (-1, -1), (-1, 0), (-1, 1)]
+    steps = [(0, 1), (1, 1), (1, 0), (1, -1), (-1, 0), (-1, -1), (-1, 0), (-1, 1)]
 
-    def __init__(self, sz, row_sz):
+    def __init__(self, sz, win_cnt):
         self.cur_x = []
         self.cur_o = []
         self.n = sz
-        self.row_n = row_sz
+        self.win_count = win_cnt
         self.move_x = True
 
     def __is_in_field(self, x, y):
         return x >= 1 and y >= 1 and x <= self.n and y <= self.n
 
-    def __try_expand_x(self, rem, x, y, dx, dy):
-        if rem == 0:
+    def __try_expand_x(self, steps_cnt, x, y, dx, dy):
+        if steps_cnt == 0:
             return True
         else:
-            return self.__is_in_field(x + dx, y + dy) and self.cur_x.count((x + dx, y + dy)) == 1 and self.__try_expand_x(rem - 1, x + dx, y + dy, dx, dy)
+            return self.__is_in_field(x + dx, y + dy) and self.cur_x.count((x + dx, y + dy)) == 1 and self.__try_expand_x(steps_cnt - 1, x + dx, y + dy, dx, dy)
 
-    def __try_expand_o(self, rem, x, y, dx, dy):
-        if rem == 0:
+    def __try_expand_o(self, steps_cnt, x, y, dx, dy):
+        if steps_cnt == 0:
             return True
         else:
-            return self.__is_in_field(x + dx, y + dy) and self.cur_o.count((x + dx, y + dy)) == 1 and self.__try_expand_o(rem - 1, x + dx, y + dy, dx, dy)
+            return self.__is_in_field(x + dx, y + dy) and self.cur_o.count((x + dx, y + dy)) == 1 and self.__try_expand_o(steps_cnt - 1, x + dx, y + dy, dx, dy)
 
     def is_square_free(self, x, y):
         return self.cur_x.count((x, y)) == 0 and self.cur_o.count((x, y)) == 0 and self.__is_in_field(x, y)
@@ -37,19 +49,19 @@ class Game:
 
     def get_score(self):
         for sq in self.cur_x:
-            for d in self.dd:
-                if self.__try_expand_x(self.row_n - 1, sq[0], sq[1], d[0], d[1]):
-                    return 1
+            for d in self.steps:
+                if self.__try_expand_x(self.win_count - 1, sq[0], sq[1], d[0], d[1]):
+                    return Score.WIN
 
         for sq in self.cur_o:
-            for d in self.dd:
-                if self.__try_expand_o(self.row_n - 1, sq[0], sq[1], d[0], d[1]):
-                    return -1
+            for d in self.steps:
+                if self.__try_expand_o(self.win_count - 1, sq[0], sq[1], d[0], d[1]):
+                    return Score.LOSE
 
-        return 0
+        return Score.NOT_FINISHED
 
     def is_game_finished(self):
-        return self.get_score() != 0 or self.is_tie()
+        return self.get_score() != Score.NOT_FINISHED or self.is_tie()
 
     def make_a_move(self, new_x, new_y):
         if self.is_square_free(new_x, new_y):
@@ -75,18 +87,15 @@ class Game:
 
 def find_move(game, depth):
     if game.is_game_finished():
-        return (game.get_score(), 0, 0)
+        return ResultData(game.get_score(), 0, 0)
     
-    mn_val = 100
-    mn_x = 0
-    mn_y = 0
-    mx_val = -100
-    mx_x = 0
-    mx_y = 0
+    mn_val, mx_val = 100, -100
+    mn_x, mx_x = 0, 0
+    mn_y, mx_y = 0, 0
 
     for x in range(1, game.n + 1):
         for y in range(1, game.n + 1):
-            if mn_val == -1 and mx_val == 1:
+            if mn_val == Score.LOSE and mx_val == Score.WIN:
                 break
 
             if game.is_square_free(x, y):
@@ -94,20 +103,17 @@ def find_move(game, depth):
                 new_game.make_a_move(x, y)
 
                 score = new_game.get_score()
-                res = (score, x, y)
+                res = Result(score, x, y)
                 if score == 0 and depth != 0:
                     res = find_move(new_game, depth - 1)
                 
-                #if depth == 5:
-                #    print(x, y, res)
-                
-                if mn_val > res[0]:
-                    mn_val = res[0]
+                if mn_val > res.result:
+                    mn_val = res.result
                     mn_x = x
                     mn_y = y
                 
-                if mx_val < res[0]:
-                    mx_val = res[0]
+                if mx_val < res.result:
+                    mx_val = res.result
                     mx_x = x
                     mx_y = y
     
@@ -126,6 +132,6 @@ def print_field(game):
 
 def make_a_move(game, depth):
     res = find_move(game, depth)
-    game.make_a_move(res[1], res[2])
-    print("Computer made a move: ", res[1], res[2], "\n")
+    game.make_a_move(res.x, res.y)
+    print("Computer made a move: ", res.x, res.y, "\n")
     print_field(game)
