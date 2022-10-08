@@ -1,44 +1,55 @@
 import copy
 from enum import Enum
 
+
+WIN = 1
+LOSE = -1
+NOT_FINISHED = 0
+
+
 class ResultData:
+    x: 0
+    y: 0
+    result: NOT_FINISHED
+
     def __init__(self, res, x, y):
         self.x = x
         self.y = y
         self.result = res
 
-class Score(Enum):
-    'WIN' = 1
-    'LOSE' = -1
-    'NOT_FINISHED' = 0
+    def __eq__(self, other):
+        return self.x == other.x and self.y == other.y and self.result == other.result
+
 
 class Game:
-    steps = [(0, 1), (1, 1), (1, 0), (1, -1), (-1, 0), (-1, -1), (-1, 0), (-1, 1)]
+    steps = [(0, 1), (1, 1), (1, 0), (1, -1),
+             (-1, 0), (-1, -1), (-1, 0), (-1, 1)]
 
     def __init__(self, sz, win_cnt):
-        self.cur_x = []
-        self.cur_o = []
+        self.cur = {
+            'x': [],
+            'o': []
+        }
         self.n = sz
         self.win_count = win_cnt
-        self.move_x = True
 
     def __is_in_field(self, x, y):
-        return x >= 1 and y >= 1 and x <= self.n and y <= self.n
+        return 1 <= x <= self.n and 1 <= y <= self.n
 
-    def __try_expand_x(self, steps_cnt, x, y, dx, dy):
+    def __try_expand(self, steps_cnt, x, y, dx, dy, sign):
         if steps_cnt == 0:
             return True
-        else:
-            return self.__is_in_field(x + dx, y + dy) and self.cur_x.count((x + dx, y + dy)) == 1 and self.__try_expand_x(steps_cnt - 1, x + dx, y + dy, dx, dy)
-
-    def __try_expand_o(self, steps_cnt, x, y, dx, dy):
-        if steps_cnt == 0:
-            return True
-        else:
-            return self.__is_in_field(x + dx, y + dy) and self.cur_o.count((x + dx, y + dy)) == 1 and self.__try_expand_o(steps_cnt - 1, x + dx, y + dy, dx, dy)
+        return self.__is_in_field(x + dx, y + dy) and self.cur[sign].count((x + dx, y + dy)) == 1 and self.__try_expand(steps_cnt - 1, x + dx, y + dy, dx, dy, sign)
 
     def is_square_free(self, x, y):
-        return self.cur_x.count((x, y)) == 0 and self.cur_o.count((x, y)) == 0 and self.__is_in_field(x, y)
+        if not self.__is_in_field(x, y):
+            return False
+
+        for sign in self.cur:
+            if self.cur[sign].count((x, y)):
+                return False
+
+        return True
 
     def is_tie(self):
         for x in range(1, self.n + 1):
@@ -48,39 +59,38 @@ class Game:
         return True
 
     def get_score(self):
-        for sq in self.cur_x:
-            for d in self.steps:
-                if self.__try_expand_x(self.win_count - 1, sq[0], sq[1], d[0], d[1]):
-                    return Score.WIN
+        for sign in self.cur:
+            for square in self.cur[sign]:
+                for step in self.steps:
+                    if self.__try_expand(self.win_count - 1, square[0], square[1], step[0], step[1], sign):
+                        return WIN if sign == 'x' else LOSE
 
-        for sq in self.cur_o:
-            for d in self.steps:
-                if self.__try_expand_o(self.win_count - 1, sq[0], sq[1], d[0], d[1]):
-                    return Score.LOSE
-
-        return Score.NOT_FINISHED
+        return NOT_FINISHED
 
     def is_game_finished(self):
-        return self.get_score() != Score.NOT_FINISHED or self.is_tie()
+        return self.get_score() != NOT_FINISHED or self.is_tie()
+
+    def current_sign(self):
+        x_squares = len(self.cur.get('x', []))
+        o_squares = len(self.cur.get('o', []))
+
+        if x_squares == o_squares:
+            return 'x'
+        else:
+            return 'o'
 
     def make_a_move(self, new_x, new_y):
-        if self.is_square_free(new_x, new_y):
-            if self.move_x:
-                self.cur_x.append((new_x, new_y))
-                self.move_x = False
-            else:
-                self.cur_o.append((new_x, new_y))
-                self.move_x = True
-            return True
-        else:
+        if not self.is_square_free(new_x, new_y):
             return False
+
+        self.cur[self.current_sign()].append((new_x, new_y))
+        return True
 
     def get_field(self):
         field = [['.' for i in range(self.n)] for j in range(self.n)]
-        for sq in self.cur_x:
-            field[sq[1] - 1][sq[0] - 1] = 'X'
-        for sq in self.cur_o:
-            field[sq[1] - 1][sq[0] - 1] = 'O'
+        for sign in self.cur:
+            for square in self.cur[sign]:
+                field[square[1] - 1][square[0] - 1] = sign.upper()
 
         return field
 
@@ -88,14 +98,14 @@ class Game:
 def find_move(game, depth):
     if game.is_game_finished():
         return ResultData(game.get_score(), 0, 0)
-    
+
     mn_val, mx_val = 100, -100
     mn_x, mx_x = 0, 0
     mn_y, mx_y = 0, 0
 
     for x in range(1, game.n + 1):
         for y in range(1, game.n + 1):
-            if mn_val == Score.LOSE and mx_val == Score.WIN:
+            if mn_val == LOSE and mx_val == WIN:
                 break
 
             if game.is_square_free(x, y):
@@ -103,35 +113,39 @@ def find_move(game, depth):
                 new_game.make_a_move(x, y)
 
                 score = new_game.get_score()
-                res = Result(score, x, y)
-                if score == 0 and depth != 0:
+                res = ResultData(score, x, y)
+                if score == NOT_FINISHED and depth != 0:
                     res = find_move(new_game, depth - 1)
-                
+
                 if mn_val > res.result:
                     mn_val = res.result
                     mn_x = x
                     mn_y = y
-                
+
                 if mx_val < res.result:
                     mx_val = res.result
                     mx_x = x
                     mx_y = y
-    
-    if game.move_x:
-        return (mx_val, mx_x, mx_y)
+
+    if game.current_sign() == 'x':
+        return ResultData(mx_val, mx_x, mx_y)
     else:
-        return (mn_val, mn_x, mn_y)
+        return ResultData(mn_val, mn_x, mn_y)
+
 
 def print_field(game):
     field = game.get_field()
     for i in field:
         for j in i:
-            print(j, end = '')
-        print("\n", end = '')
-    print("\n")
+            print(j, end='')
+        print()
+    print()
+    print()
+
 
 def make_a_move(game, depth):
     res = find_move(game, depth)
     game.make_a_move(res.x, res.y)
-    print("Computer made a move: ", res.x, res.y, "\n")
+    print("Computer made a move: ", res.x, res.y)
+    print()
     print_field(game)
